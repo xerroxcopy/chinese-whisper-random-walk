@@ -1,0 +1,338 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r results='hide'}
+library(tidyverse)
+library(gganimate)
+# library(ggthemes)
+library(fontregisterer)
+library(av)
+```
+
+```{r}
+# "Creative Copy on AIIT Homecoming Day Matsui Minoru"
+input <- "Creative Copy Matsui Minoru" |> 
+  str_to_upper()
+randomize_N_times <- 100
+nwords <- input |>  
+  str_split(pattern = "\\s") |> 
+  length()
+# init out of for
+result <- vector(length = randomize_N_times)
+input_vec <- input |> 
+  str_split(pattern = "\\s") |> 
+  unlist()
+for(n in 1:randomize_N_times) {
+  # initialize
+  result_vecs <- vector(length = nwords)
+  for(i in 1:length(input_vec)) {
+    input_str <- input_vec[i] 
+    length_of_str <- nchar(input_str)
+    split_letters <-input_str |>
+      str_split(pattern = "") |> 
+      unlist()
+    if (length_of_str > 2) {
+    middle_section <- split_letters[2:(length(split_letters) - 1)] |> 
+      sample() |> 
+      paste(collapse = "")
+    } else {middle_section <- ""}
+      result_vec <- paste0(split_letters[1], middle_section, split_letters[length(split_letters)])
+      # result_vec = "Mrionu"
+      result_vecs[i] <- result_vec
+  } 
+  result_str <- paste(result_vecs, collapse = " ")
+  result[n] <- result_str
+}
+```
+
+## copypaste
+```{r}
+result |> paste(collapse = "lalala")
+```
+
+
+
+# grouped
+
+now group some letters into chunks (not like "M", "i", "n", "o", ... but like "Min", "or", and "u")
+
+```{r}
+input <- "Creative Copy Matsui Minoru" |> 
+  str_to_upper()
+randomize_N_times <- 100
+nwords <- input |>  
+  str_split(pattern = "\\s") |> 
+  length()
+# init out of for
+result <- vector(length = randomize_N_times)
+input_vec <- input |> 
+  str_split(pattern = "\\s") |> 
+  unlist()
+for(n in 1:randomize_N_times) {
+  # initialize
+  result_vecs <- vector(length = nwords)
+  for(i in 1:length(input_vec)) {
+    input_str <- input_vec[i] 
+    length_of_str <- nchar(input_str)
+    split_letters <-input_str |>
+      str_split(pattern = "") |> 
+      unlist()
+    if (length_of_str > 2) {
+    middle_section <- split_letters[2:(length(split_letters) - 1)] |> 
+      sample() |> 
+      paste(collapse = "")
+    } else {middle_section <- ""}
+      result_vec <- paste0(split_letters[1], middle_section, split_letters[length(split_letters)])
+      # result_vec = "Mrionu"
+      result_vecs[i] <- result_vec
+  } 
+  result_str <- paste(result_vecs, collapse = " ")
+  result[n] <- result_str
+}
+```
+
+
+# random walk chinese whisperer
+
+change gradually
+mutate / combine / insert / 
+
+チェインでどんどんコピーミスが蓄積していく感じをCOPY, COPY, CPOY, CPOPY, CPOPY, CPOPY, CPPY, CPY, CPYP, CPYYP,みたいにやりたい。で、CREATIVE COPY |>  COPY |> CPOPY |> ... としたい。どうやって変異させる？
+
+コードはスライドの最後につけよう。
+
+
+### mutation rate
+```{r}
+library(extraDistr) # rbbinom
+rbeta(100, ) |> as.tibble() |> 
+  ggplot(aes(value)) +
+  geom_density()
+
+
+rbinom(1000, 20, prob = .5) |>
+  as.tibble() |> 
+  ggplot(aes(value)) +
+  geom_histogram(binwidth = 1)
+
+rbbinom(size = 20, n = 100000, alpha = 1.5, beta = 1.5) |> 
+  as.tibble() |> 
+  ggplot(aes(value)) +
+  geom_histogram(binwidth = 1)
+
+runif(100000, min = 0, max = 20) |> ceiling() |> as.tibble() |> 
+    ggplot(aes(value)) +
+  geom_histogram(binwidth = .1)
+
+rlogis(1000, location = 0, scale = 1) |> as.tibble() |> 
+    ggplot(aes(value)) +
+  geom_histogram(binwidth = .1)
+
+vec <- rbbinom(size = 20 - 1, n = 100000, alpha = 1.5, beta = 1.5)  + 1
+vec |> max()
+
+```
+
+#### sigmoid
+
+[sigmoid at wiki](https://ja.wikipedia.org/wiki/%E3%82%B7%E3%82%B0%E3%83%A2%E3%82%A4%E3%83%89%E9%96%A2%E6%95%B0)
+
+`y_max` mutation_rateは小さめにしたい。1は大きすぎ。
+`x_shift` 右にシフトしたい。(x_shift, y_max/2)を中心に点対称になる
+`gain` 急さ。1より大きくすると傾きが急になる。
+
+```{r}
+sigmoid <- 
+  function(x, gain = 1, x_shift = 0, y_max = 1) {
+    1 / (1 + exp(gain * (x_shift - x))) * y_max
+    } 
+base <-
+  ggplot() +
+  xlim(-3, 15) +
+  ylim(0, 1)
+base +  geom_function(
+  fun = ~ sigmoid(x = .x, gain = .3, x_shift = 5, y_max =.3), size = 2
+)  + 
+  geom_vline(xintercept = 1) +
+  geom_function(
+  fun = function(x) {
+    (1 / (1 + exp(1.3 * (5 - x)))) * .3
+  }, color = "red"
+) +
+    geom_function(
+  fun = function(x) {
+    (1 / (1 + exp(-x))) * .3
+    }, color = "black"
+) +
+  geom_function(
+  fun = function(x) {
+    (1 / (1 + exp(5 - x))) * .3
+    }, color = "blue"
+)
+
+
+# sigmoid(x = nchar(trait) - nchar(input), x_shift = nchar(input), gain = 0.5, y_max = .001)
+# mu_replace
+# sigmoid(
+    x = -delta, 
+    x_shift = nchar(input), 
+    gain = 0.5, 
+    y_max = mu_baseline_max)
+
+
+base +ylim(0, .1) + geom_function(
+  fun = ~ sigmoid(x = -.x, gain = 0.5, y_max = .1, x_shift = -10)
+) +
+  geom_function(
+  fun = ~ sigmoid(x = .x, gain = 0.5, y_max = .1, x_shift = 10)
+)
+```
+
+
+```{r}
+# CONSTANTS
+input <- "XERROXCOPY" |> str_to_upper()
+timesteps <- 1000
+beta_param <- 1.5 # 1.5 seems fine
+input_vec <- input |>
+  str_split(pattern = "") |> 
+  unlist()
+result <- vector(length = timesteps)
+
+mu_baseline_max <- .1
+trait <- input
+runs <- 2 # one for a sequence, and one for reverse sequence
+results <- list()
+for(run in 1:runs) {
+  trait <- input
+for(timestep in 1:timesteps) {
+  delta <- nchar(trait) - nchar(input)
+  # 1. replace just one char with something from pool (input_split)
+  mu_replace <- mu_baseline_max
+  should_replace_somewhere <- runif(1) < mu_replace
+  if (should_replace_somewhere) {
+    replace_where <- rbbinom(n = 1, size = nchar(trait) - 1, alpha = beta_param, beta = beta_param) + 1 # + 1 to prevent 0. without it it gives 0 to nchar(trait) if size = nchar(trait).
+    replace_with_char <- sample(input_vec, 1)
+    trait <- trait |> 
+      stri_sub_replace(from = replace_where, length = 1, value = replace_with_char)
+  }
+  
+  # variable mutation strengths: insert and remove
+  # insert: add c, o, p, or y in arbitrary position.
+  # https://stackoverflow.com/questions/13863599/insert-a-character-at-a-specific-location-in-a-string
+  mu_add <- sigmoid(
+    x = -1 * delta,
+    x_shift = -1 * nchar(input), # when x = -delta, x_shift also must be -
+    gain = 0.5,
+    y_max = mu_baseline_max) #  should be stronger if length < 4
+  # print(paste('mu_add', mu_add))
+  should_insert_somewhere <- runif(1) < mu_add
+  if (should_insert_somewhere) {
+    insert_where <- 
+      rbbinom(n = 1, size = nchar(trait) - 1, alpha = beta_param, beta = beta_param) + 1
+    trait <- trait |>
+      stri_sub_replace(
+        from = insert_where,
+        to = insert_where - 1,
+        value = sample(input_vec, 1))
+  }
+  # remove
+  mu_remove <- sigmoid(delta) # delete the letter. should be stronger if length >> 4
+  should_remove_somewhere <- runif(1) < mu_remove
+  if (should_remove_somewhere) {
+    remove_where <- rbbinom(n = 1, size = nchar(trait) - 1, alpha = beta_param, beta = beta_param) + 1
+    trait <- trait |>
+      stri_sub_replace(
+        from = remove_where,
+        length = 1,
+        value = ""
+      )
+  }
+  # reverse
+  mu_reverse <- .001
+  should_reverse <- runif(1) < mu_reverse
+  if (should_reverse) {
+  trait <- trait |> stri_reverse()
+
+  }
+    
+  # todo: add random character? 
+  # https://rdrr.io/cran/stringi/man/stri_rand_strings.html
+  # stri_rand_strings(1, 1, '[A-Z]')
+  
+  # store the result for output
+  
+  result[timestep] <- trait
+}
+  results[[run]] <- result
+}
+```
+
+### check if ok
+
+```{r}
+
+result[10000]
+nchar(input)
+result |> 
+  nchar() |> 
+  as.tibble() |> 
+  rowid_to_column(var = "timestep") |> 
+  ggplot(aes(timestep, value)) +
+  geom_line()
+```
+
+### output
+
+
+```{r}
+library(data.table)
+result <- results[[1]] |> unlist() |> paste(collapse = " > ")
+result_reverse<- results[[2]] |> unlist() |> rev() |> paste(collapse = " > ")
+result_str <- paste(result_reverse, result)
+fwrite(list(result_str), file = "chinese_whisperer.csv")
+
+```
+
+### output animation
+
+```{r}
+result <- results[[1]] |> unlist()
+result_reverse<- results[[2]] |> unlist() |> rev()
+result_in_on_vec <- c(result_reverse, result)
+df <- result_in_on_vec |> 
+  as_tibble() |> 
+  rowid_to_column(var = "timestep")
+```
+
+#### animation
+
+
+```{r}
+
+animation1 <- df |> 
+  ggplot(aes(x = 0, y = 0 )) +
+  geom_text(aes(label = value), family = "Fira Code", size = 10) +
+  geom_text(aes(x = 0, y = 0.1, label = timestep), family = "Fira Code", size = 3)  +
+  xlim(c(-0.5, 0.5)) +
+  ylim(c(-0.5, 0.5))  +
+  theme_void(base_family = "Fira Code") +
+  transition_states(
+    timestep,
+    transition_length = 0,
+    state_length = 0.1
+  )
+animation1 |> 
+  animate(
+    fps = 60,
+    nframes = 2000,
+    # renderer = ffmpeg_renderer()
+    renderer = ffmpeg_renderer()
+    )
+anim_save(filename = "xerroxanimate.mp4")
+```
+
+
+
